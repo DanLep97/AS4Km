@@ -6,7 +6,9 @@ Repository containing the code to replicate the training and ablation study of t
 
 ## Replicate training and ablation study
 ### Requirements
+- python 3.10
 - torch installed.
+- rdkit package version 2024.3.5
 - TankBind installed (https://github.com/luwei0917/TankBind) in `tankbind_stuff/TankBind`.
 - p2rank installed (https://github.com/rdk/p2rank) in `tankbind_stuff/p2rank_2.3`. The version can be the latest (2.5) but renamed as `p2rank_2.3`. 
 ### Build the database
