@@ -1,0 +1,71 @@
+#!/usr/bin/python
+# coding: utf-8
+
+# Author: Xiao He
+# Date: 2023-08-08
+
+import requests
+import argparse
+
+arg_parser = argparse.ArgumentParser(
+    description="""
+    Use this file to download SABIO-RK database to be further preprocessed.
+    Original version: https://github.com/realHXiao/GraphKM/blob/main/Clean_data_codes/sabio_download.py
+    To use this script, go to https://ftp.expasy.org/databases/enzyme/ and download the latest enzyme.dat file.
+"""
+)
+arg_parser.add_argument(
+    "--dat",
+    help="Path to enzyme.dat file.",
+    default="../../data/enzyme.dat"
+)
+arg_parser.add_argument(
+    "--out",
+    help="Download folder where raw SABIO-RK data is saved.",
+    default="../../data/sabio_download"
+)
+a = arg_parser.parse_args()
+
+# Extract EC number list from ExPASy, which is a repository of information relative to the nomenclature of enzymes.
+def eclist():
+    with open(a.dat, 'r') as outfile :
+        lines = outfile.readlines()
+
+    ec_list = list()
+    for line in lines :
+        if line.startswith('ID') :
+            ec = line.strip().split('  ')[1]
+            ec_list.append(ec)
+    # print(ec_list)
+    print(len(ec_list)) # 7906
+    return ec_list
+
+def sabio_info(allEC):
+    QUERY_URL = 'http://sabiork.h-its.org/sabioRestWebServices/kineticlawsExportTsv'
+    i = 0
+    for EC in allEC :
+        i += 1
+        print('This is %d ----------------------------' %i)
+        print(EC)
+        query_dict = {"ECNumber":'%s' %EC,}
+        query_string = ' AND '.join(['%s:%s' % (k,v) for k,v in query_dict.items()])
+
+
+        # specify output fields and send request
+        query = {'fields[]':['EntryID', 'Substrate', 'EnzymeType', 'PubMedID', 'Organism', 'UniprotID','ECNumber','Parameter'], 'q':query_string}
+        # the 'Smiles' keyword could get all the smiles included in substrate and product
+
+        request = requests.post(QUERY_URL, params = query)
+        # results
+        results = request.text
+        print(results)
+        print('---------------------------------------------')
+
+        if results :
+            with open('%s/%s.txt' %(a.out, EC), 'w') as ECfile :
+                ECfile.write(results)
+
+
+if __name__ == '__main__' :
+    allEC = eclist()
+    sabio_info(allEC)
