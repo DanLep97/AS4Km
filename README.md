@@ -1,5 +1,9 @@
 # AS4Km
 
+
+
+[![DOI](https://zenodo.org/badge/460836351.svg)](https://doi.org/10.5281/zenodo.13820275)
+
 ![image](./TOC.png)
 
 Repository containing the code to replicate the training and ablation study of the AS4Km paper.
