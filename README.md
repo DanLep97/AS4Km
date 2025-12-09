@@ -1,8 +1,5 @@
 # AS4Km
-
-
-
-[![DOI][(https://zenodo.org/badge/460836351.svg)](https://doi.org/10.5281/zenodo.13820275)](https://doi.org/10.5281/zenodo.17868147)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17868147.svg)](https://doi.org/10.5281/zenodo.17868147)
 
 ![image](./TOC.png)
 
