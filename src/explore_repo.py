@@ -206,12 +206,12 @@ def plot_all_ablation(
     ):
     zipped = zip(experiment_filenames, experiment_conditions)
     labels = {
-        "protein_free_test": "Protein free",
+        "protein_free_test": "Enzyme free",
         "aa_id_free_test": "AA identity free",
         "bs_free_test": "AS free",
         "unconditioned_bs_test": "Unconditioned AS",
         "conditioned_bs_test": "Conditioned AS",
-        "molecule_free_test": "Molecule free",
+        "molecule_free_test": "Substrate free",
         "descriptor_free_test": "Descriptor free",
         "fingerprint_free_test": "Fingerprint free",
     }
@@ -243,6 +243,7 @@ def plot_all_ablation(
 
     fig = go.Figure(data=fig_data)
     fig.update_xaxes(labelalias=labels)
+    fig.update_yaxes(title_text="R²")
     fig.update_layout(
         margin=dict(t=5, b=5, r=0, l=50),
         font=dict(size=19),
@@ -253,7 +254,7 @@ def plot_all_ablation(
         }
     )
     fig.add_annotation(
-        x=-0.05,
+        x=-0.08,
         y=.95,
         showarrow=False,
         yref="paper",
@@ -306,14 +307,14 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
     grouped.reset_index(inplace=True, drop=True)
     
     labels = {
-        "protein_free_test": "Enzyme free",
-        "aa_id_free_test": "AA identity free",
-        "molecule_free_test": "Substrate free",
-        "bs_free_test": "AS free",
         "conditioned_bs_test": "Conditioned AS",
+        "unconditioned_bs_test": "Unconditioned AS\n(AS4Km)",
+        "aa_id_free_test": "AA identity free",
+        "bs_free_test": "AS free",
+        "protein_free_test": "Enzyme free",
         "descriptor_free_test": "Descriptor free",
         "fingerprint_free_test": "Fingerprint free",
-        "unconditioned_bs_test": "Unconditioned AS\n(AS4Km)"
+        "molecule_free_test": "Substrate free",
     }
     
     # Create the plot
@@ -437,7 +438,6 @@ def learning_curves(
         )
     y_axes = [y for f_data in figure_data for y in f_data["titles"]["y_axis"]] 
     figures = [f for f_data in figure_data for f in f_data["figs"]] 
-    print(len(figures))
     # build final fig:
     rows = 6
     cols = 3
@@ -520,7 +520,7 @@ def plot_val_train_metrics(
     fig_data["titles"]["y_axis"].append(f"{title}: MSE")
 
     fig_data["figs"].append(plot_learning_curve_fig(train_r2, val_r2))
-    fig_data["titles"]["y_axis"].append(f"{title}: R2")
+    fig_data["titles"]["y_axis"].append(f"{title}: R²")
     return fig_data
 
 
