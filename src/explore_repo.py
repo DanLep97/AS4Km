@@ -64,7 +64,7 @@ def plot_gating_weights():
     ax1.set_ylim(0, 0.0035)
     
     # Add annotation A
-    ax1.text(-0.15, .90, 'A', transform=ax1.transAxes, 
+    ax1.text(-0.12, .95, 'A', transform=ax1.transAxes, 
              fontsize=20, fontweight='bold', va='bottom', ha='right')
     
     # ====================================================================
@@ -137,7 +137,7 @@ def plot_gating_weights():
     ax2.grid(True, alpha=0.3, axis='y')
     
     # Add annotation B
-    ax2.text(-0.15, 0.90, 'B', transform=ax2.transAxes, 
+    ax2.text(-0.15, 0.95, 'B', transform=ax2.transAxes, 
              fontsize=20, fontweight='bold', va='bottom', ha='right')
     
     # Sanity check
@@ -188,13 +188,15 @@ def plot_gating_weights():
         ax_supp.grid(True, alpha=0.3, axis='y')
         
         plt.tight_layout()
-        plt.savefig("../figures/supp_fig_4.jpg", dpi=300, bbox_inches='tight')
+        plt.savefig("../figures/supp_fig_4.jpg", dpi=600, bbox_inches='tight')
+        plt.savefig("../figures/supp_fig_4.tiff", dpi=600, bbox_inches='tight')
         plt.show()
         return fig_supp
     
     # Save and show main figure
     plt.tight_layout()
-    plt.savefig("../figures/figure_6.svg", dpi=300, bbox_inches='tight')
+    plt.savefig("../figures/figure_6.jpg", dpi=600, bbox_inches='tight')
+    plt.savefig("../figures/figure_6.tiff", dpi=600, bbox_inches='tight')
     plt.show()
     create_supplementary_figure()
 
@@ -301,16 +303,17 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
     
     plot_order = [grouped[grouped.name == "conditioned_bs_test"].index[0]] + [grouped[grouped.name == n].index[0] for n in ranked_r2.keys()]
     grouped = grouped.reindex(plot_order)
+    grouped.reset_index(inplace=True, drop=True)
     
     labels = {
-        "protein_free_test": "Protein free",
+        "protein_free_test": "Enzyme free",
         "aa_id_free_test": "AA identity free",
-        "molecule_free_test": "Molecule free",
+        "molecule_free_test": "Substrate free",
         "bs_free_test": "AS free",
         "conditioned_bs_test": "Conditioned AS",
         "descriptor_free_test": "Descriptor free",
         "fingerprint_free_test": "Fingerprint free",
-        "unconditioned_bs_test": "Unconditioned AS"
+        "unconditioned_bs_test": "Unconditioned AS\n(AS4Km)"
     }
     
     # Create the plot
@@ -326,7 +329,7 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
     r2_bars = ax.bar(x - width/2, grouped.r2_mean.values, width, 
                      yerr=grouped.r2_std.values, 
                      capsize=5, error_kw={'elinewidth': 2, 'ecolor': 'red'},
-                     label='R2', color='orange', edgecolor='black', linewidth=1)
+                     label='R$^2$', color='orange', edgecolor='black', linewidth=1)
     
     # Plot Pearson bars with error bars
     p_bars = ax.bar(x + width/2, grouped.p_mean.values, width, 
@@ -371,7 +374,8 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
     plt.tight_layout()
     
     # Save the figure
-    plt.savefig(file_name, dpi=300, bbox_inches='tight')
+    plt.savefig(file_name, dpi=600, bbox_inches='tight')
+    plt.savefig(file_name.replace(".jpg", ".tiff"), dpi=600, bbox_inches='tight')
     plt.show()
     
     # Print table if requested
@@ -520,7 +524,7 @@ def plot_val_train_metrics(
     return fig_data
 
 
-def results_plot(model_name, test_name, grouped_data, title, save_path):
+def results_plot(model_name, test_name, grouped_data, save_path):
     """
     Create a 2x3 subplot figure with scatter plot, histogram, and bar chart
     
@@ -586,8 +590,10 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
     all_preds = torch.stack(all_preds)
     
     # Calculate metrics
-    r2 = grouped_data[grouped_data.name == test_name].r2_mean.item()
-    p = grouped_data[grouped_data.name == test_name].p_mean.item()
+    r2_mean = grouped_data[grouped_data.name == test_name].r2_mean.item()
+    r2_std = grouped_data[grouped_data.name == test_name].r2_std.item()
+    p_mean = grouped_data[grouped_data.name == test_name].p_mean.item()
+    p_std = grouped_data[grouped_data.name == test_name].p_std.item()
     
     true_means = all_y.mean(dim=0).numpy()
     pred_means = all_preds.mean(dim=0).numpy()
@@ -612,7 +618,7 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
              'k--', alpha=0.5, linewidth=2, label='Ideal prediction')
     
     # Add metrics annotation
-    ax1.text(0.55, 0.06, f'Average R²: {r2:.3f}\nAverage Pearson: {p:.3f}',
+    ax1.text(0.55, 0.06, f'R²: {r2_mean:.3f} ± {r2_std:.3f} \nPearson: {p_mean:.3f} ± {p_std:.3f}',
              transform=ax1.transAxes, fontsize=18,
              verticalalignment='bottom',
              bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
@@ -632,7 +638,7 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
     ax1.tick_params(axis='both', labelsize=16)
     
     # Add annotation A
-    ax1.text(-0.05, 0.90, 'A', transform=ax1.transAxes, 
+    ax1.text(-0.07, 0.95, 'A', transform=ax1.transAxes, 
              fontsize=24, fontweight='bold', va='bottom', ha='right')
     
     # ====================================================================
@@ -641,14 +647,14 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
     ax2 = fig.add_subplot(gs[0, 2])
     
     # Create histogram data
-    ax2.hist(true_means, bins=30, alpha=0.7, label='True', 
+    ax2.hist(true_means, bins=30, alpha=0.7, label='Experimental', 
              color='orange', edgecolor='black', linewidth=0.5)
     ax2.hist(pred_means, bins=30, alpha=0.7, label='Predicted', 
              color='blue', edgecolor='black', linewidth=0.5)
     
     ax2.set_xlabel('Km normalized value', fontsize=18)
     ax2.set_ylabel('Count', fontsize=18)
-    ax2.legend(fontsize=16)
+    ax2.legend(fontsize=13, loc="upper left", ncols=1)
     ax2.grid(True, alpha=0.3)
     ax2.tick_params(axis='both', labelsize=16)
     
@@ -701,7 +707,7 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
         r2_wildtypes.append(r2_score(wildtype_preds, wildtype_targets))
         pcc_wildtypes.append(pcc(wildtype_preds, wildtype_targets))
 
-    _, p_value = stats.ttest_rel(r2_mutants, r2_wildtypes)
+    _, p_value = stats.ttest_rel(pcc_mutants, pcc_wildtypes)
     if p_value < 0.001:
         significance = "***"
     elif p_value < 0.01:
@@ -765,21 +771,13 @@ def results_plot(model_name, test_name, grouped_data, title, save_path):
     ax3.set_ylim([0, y_max * 1.35])
     
     # Add annotation C
-    ax3.text(-0.15, 0.90, 'C', transform=ax3.transAxes, 
+    ax3.text(-0.16, 0.92, 'C', transform=ax3.transAxes, 
              fontsize=24, fontweight='bold', va='bottom', ha='right')
     
     # Save and show
     # plt.tight_layout()
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    plt.savefig(save_path.replace(".jpg", ".tiff"), dpi=600, bbox_inches='tight')
     plt.show()
     
-    return fig, r2, p
-
-# Usage example:
-# fig, r2, p = results_plot(
-#     model_name="conditioned_bs_full_features",
-#     test_name="unconditioned_bs_test",
-#     grouped_data=grouped,
-#     title="HXKm database: true vs predicted",
-#     save_path="../figures/figure_3_matplotlib.jpg"
-# )
+    return fig, r2_mean, p_mean
