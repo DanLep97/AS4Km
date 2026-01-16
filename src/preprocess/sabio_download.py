@@ -41,7 +41,7 @@ def eclist():
     return ec_list
 
 def sabio_info(allEC):
-    QUERY_URL = 'http://sabiork.h-its.org/sabioRestWebServices/kineticlawsExportTsv'
+    QUERY_URL = 'https://sabiork.h-its.org/sabioRestWebServices/kineticlawsExportTsv'
     i = 0
     for EC in allEC :
         i += 1
