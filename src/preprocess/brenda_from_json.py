@@ -47,24 +47,23 @@ ec_with_no_protein_km = []
 
 print("Acquiring targets..")
 for ec in ecs: # get the values:
-    if "km_value" in db_data[ec] and "proteins" in db_data[ec]:
+    if "km_value" in db_data[ec] and "protein" in db_data[ec]:
         for km_creds in db_data[ec]["km_value"]:
-            if "value" in km_creds and "num_value" in km_creds and "proteins" in km_creds and len(km_creds["proteins"]) == 1:
+            if "value" in km_creds and "value" in km_creds and "proteins" in km_creds and len(km_creds["proteins"]) == 1:
                 protein_num = km_creds["proteins"][0]
-                if "accessions" in db_data[ec]["proteins"][protein_num][0]:
+                if "accessions" in db_data[ec]["protein"][protein_num]:
                     if "comment" not in km_creds:
-                        protein_type = "Unknown"
+                        continue
                     else:
                         protein_type = ("WT", "recomb_or_mutant")[re.search(r"recomb|mutant", km_creds["comment"]) != None]
-                    if protein_type == "WT":
                         protein_types.append(protein_type)
                         substrates.append(km_creds["value"])
-                        km_values.append(km_creds["num_value"])
-                        uniprot_key = db_data[ec]["proteins"][protein_num][0]["accessions"][0]
+                        km_values.append(km_creds["value"])
+                        uniprot_key = db_data[ec]["protein"][protein_num]["accessions"][0]
                         uniprot_keys.append(uniprot_key)
                         enzyme_commissions.append(ec)
-else:
-    ec_with_no_protein_km.append(ec)
+    else:
+        ec_with_no_protein_km.append(ec)
 
 print("Saving into csv..")
 data = {
@@ -75,5 +74,10 @@ data = {
     "enzyme_commission": enzyme_commissions
 }
 df = pandas.DataFrame(data)
+print("BRENDA database including WT and mutants:", df.shape[0])
+df = df.loc[
+    df.protein_type == "WT"
+]
+print("BRENDA database including WT only:", df.shape[0])
 df.to_csv("../../data/brenda.csv", index=False)
 print(f"brenda.csv saved with {df.shape[0]} entries.")
