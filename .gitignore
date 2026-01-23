@@ -5,3 +5,8 @@ data/p2rank/
 data/models/
 data/logs/
 data/
+figures/
+__pycache__/
+tankbind_stuff/
+src/preprocess/p2rank_out.txt
+src/preprocess/structures.txt

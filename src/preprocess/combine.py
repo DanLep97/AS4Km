@@ -32,7 +32,7 @@ brenda = pandas.read_csv("../../data/brenda.csv")
 
 # concat both:
 brenda_sabio = pandas.concat([brenda, sabio])
-brenda_sabio.to_csv("../../data/brenda_sabio_with_mutants.csv", index=False)
+brenda_sabio.to_csv("../../data/brenda_sabio_without_mutants.csv", index=False)
 
 # making sure only wildtypes:
 brenda_sabio = brenda_sabio.loc[brenda_sabio.protein_type == "WT"]

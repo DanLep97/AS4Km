@@ -15,6 +15,217 @@ from torcheval.metrics.functional import r2_score
 from torchmetrics import PearsonCorrCoef
 from model import Network
 from hyperparameters import hyperparameters
+from rdkit import DataStructs
+import numpy
+import numpy as np
+from scipy import stats
+
+def plot_prot_lig_clustered():
+    pcc = PearsonCorrCoef()
+    hxkm = pandas.read_csv("../data/hxkm.csv")
+    df_train = pandas.read_csv("../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv")
+    train_db = KmClass(df_train).dataframe
+    df_test = pandas.read_csv("../data/csv/HXKm_dataset_final_new_unconditioned_bs.csv")
+    # df_test = pandas.read_csv("../data/csv/HXKm_dataset_final_new_bs_free.csv")
+    test_db = KmClass(df_test).dataframe
+    clusters = pandas.read_csv("../data/enzyme_test_vs_train.tsv", sep="\t")
+    columns = "query,target,pident,evalue,qstart,qend,qlen,tstart,tend,tlen".split(",")
+    clusters.columns = columns 
+    clusters.reset_index(drop=True, inplace=True)
+
+    # enzyme thresholds per unique query:
+    query_pidents = {
+        query: clusters.loc[clusters["query"] == query].pident
+        for query in clusters["query"].unique()
+    }
+
+    # substrate thresholds per unique smiles:
+    def bitvect(bit_array, n_bits=2048):
+        fp = DataStructs.ExplicitBitVect(n_bits)
+        
+        # Set the bits that are 1
+        indices = numpy.where(bit_array == 1)[0]
+        for idx in indices:
+            fp.SetBit(int(idx))
+        
+        return fp
+
+    train_fingerprints = [bitvect(row.values) for _,row in train_db.iloc[:,-2049:-1].iterrows()]
+    test_fingerprints = [bitvect(row.values) for _,row in test_db.iloc[:,-2049:-1].iterrows()]
+    tanimoto_matrix = torch.tensor([
+        [DataStructs.TanimotoSimilarity(test_fp, train_fp) for train_fp in train_fingerprints]
+        for test_fp in test_fingerprints
+    ]) # each row are similarities to one given test entry
+
+    output_files = glob.glob(f"../data/models/conditioned_bs_full_features/*_unconditioned_bs_test_outputs.pkl")
+
+    # threshold data:
+    enz_clusters = {
+        99: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        80: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        60: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        40: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        }
+    }
+    lig_clusters = {
+        99: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        80: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        60: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
+        40: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        }
+    }
+
+    for file in output_files:
+        outputs = pickle.load(open(file, "rb"))
+        y = torch.tensor(outputs["y_scaled"])
+        preds = torch.tensor(outputs["preds_scaled"])
+        indices = outputs["all_idx"].flatten()
+        test_entries = test_db.iloc[indices]
+
+        uniprot_keys = test_entries.apply(
+            lambda x: hxkm.loc[hxkm.sequence == x.sequence].uniprot_key.values[0],
+            axis=1
+        )
+        uniprot_keys.reset_index(drop=True, inplace=True)
+        for threshold in enz_clusters.keys():
+            # get below threshold uniprot ids:
+            threshold_queries = set([
+                q for q,pidents in query_pidents.items()
+                if all((pidents < threshold).tolist())
+            ])
+            # compute scores and save them:
+            threshold_output_idx = uniprot_keys[uniprot_keys.isin(threshold_queries)].index.tolist()
+            threshold_preds = preds[threshold_output_idx]
+            threshold_y = y[threshold_output_idx]
+            r2 = r2_score(threshold_preds, threshold_y).item()
+            pearson = pcc(threshold_preds, threshold_y).item()
+            enz_clusters[threshold]["r2"].append(r2)
+            enz_clusters[threshold]["pcc"].append(pearson)
+            enz_clusters[threshold]["n"].append(len(threshold_output_idx))
+
+        # scores based on substrate similarity:
+        for threshold in lig_clusters:
+            t = threshold/100
+            similarity_matrix_nonzero = (tanimoto_matrix <= t).nonzero()[:,0]
+            threshold_output_idx = (
+                similarity_matrix_nonzero.bincount() == tanimoto_matrix.shape[1]
+            ).nonzero()[:,0].tolist()
+            # compute scores and save them:
+            threshold_preds = preds[threshold_output_idx]
+            threshold_y = y[threshold_output_idx]
+            r2 = r2_score(threshold_preds, threshold_y).item()
+            pearson = pcc(threshold_preds, threshold_y).item()
+            lig_clusters[threshold]["r2"].append(r2)
+            lig_clusters[threshold]["pcc"].append(pearson)
+            lig_clusters[threshold]["n"].append(len(threshold_output_idx))
+
+    # Assuming enz_clusters and lig_clusters are defined with your data
+    # Calculate means for each threshold
+    thresholds = sorted(enz_clusters.keys())
+    enz_pcc_means = [numpy.mean(enz_clusters[t]['pcc']) for t in thresholds]
+    enz_r2_means = [numpy.mean(enz_clusters[t]['r2']) for t in thresholds]
+    lig_pcc_means = [numpy.mean(lig_clusters[t]['pcc']) for t in thresholds]
+    lig_r2_means = [numpy.mean(lig_clusters[t]['r2']) for t in thresholds]
+
+    # Calculate standard deviations for error bars
+    enz_pcc_stds = [numpy.std(enz_clusters[t]['pcc']) for t in thresholds]
+    enz_r2_stds = [numpy.std(enz_clusters[t]['r2']) for t in thresholds]
+    lig_pcc_stds = [numpy.std(lig_clusters[t]['pcc']) for t in thresholds]
+    lig_r2_stds = [numpy.std(lig_clusters[t]['r2']) for t in thresholds]
+
+    # Create subplots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
+
+    # Bar width and x positions
+    x = numpy.arange(len(thresholds))
+    width = 0.35
+
+    # Plot 1: Enzyme-based clustering
+    bars1 = ax1.bar(x - width/2, enz_r2_means, width, 
+                    label='R²', color='orange', alpha=0.8,
+                    yerr=enz_r2_stds, capsize=5,
+                    error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
+    bars2 = ax1.bar(x + width/2, enz_pcc_means, width, 
+                    label='Pearson', color='purple', alpha=0.8,
+                    yerr=enz_pcc_stds, capsize=5,
+                    error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
+
+    ax1.set_xlabel('Clustering Threshold (%)', fontsize=12)
+    ax1.set_ylabel('Score Value', fontsize=12)
+    ax1.set_title('Enzyme-Based Clustering Performance', fontsize=14, fontweight='bold')
+    ax1.set_xticks(x)
+    ax1.set_xticklabels([f'{t}%' for t in thresholds])
+    ax1.grid(True, alpha=0.3, axis='y')
+
+    # Add value labels on bars
+    for bars in [bars1, bars2]:
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            txt = enz_clusters[thresholds[i]]["n"][0]
+            ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                    f'n={txt}', ha='center', va='bottom', fontsize=9)
+
+    # Plot 2: Ligand-based clustering  
+    bars3 = ax2.bar(x - width/2, lig_r2_means, width,
+                    label='R²', color='orange', alpha=0.8,
+                    yerr=lig_r2_stds, capsize=5,
+                    error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
+    bars4 = ax2.bar(x + width/2, lig_pcc_means, width,
+                    label='Pearson', color='purple', alpha=0.8,
+                    yerr=lig_pcc_stds, capsize=5,
+                    error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
+
+    ax2.set_xlabel('Clustering Threshold (%)', fontsize=12)
+    ax2.set_ylabel('Score Value', fontsize=12)
+    ax2.set_title('Ligand-Based Clustering Performance', fontsize=14, fontweight='bold')
+    ax2.set_xticks(x)
+    ax2.set_xticklabels([f'{t}%' for t in thresholds])
+    ax2.legend(fontsize=11)
+    ax2.grid(True, alpha=0.3, axis='y')
+
+    # Add value labels on bars
+    for bars in [bars3, bars4]:
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            txt = lig_clusters[thresholds[i]]["n"][0]
+            ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                    f'n={txt}', ha='center', va='bottom', fontsize=9)
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.savefig("../figures/scores_on_clustered.jpg", dpi=600, bbox_inches='tight')
+    plt.savefig("../figures/scores_on_clustered.tiff", dpi=600, bbox_inches='tight')
+    plt.show()
 
 def plot_gating_weights():
     """Plot gating weight contributions from neural network"""
@@ -315,6 +526,7 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
         "descriptor_free_test": "Descriptor free",
         "fingerprint_free_test": "Fingerprint free",
         "molecule_free_test": "Substrate free",
+        "esm_test": "ESM embeddings"
     }
     
     # Create the plot
@@ -449,7 +661,7 @@ def learning_curves(
         #     "R2 over epochs",
          #]
     )
-    for i in range(16):
+    for i in range(18):
         col = i % cols + 1
         row = i // cols + 1 
         for trace in figures[i]["data"]:

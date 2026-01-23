@@ -10,6 +10,7 @@ from torchmetrics import PearsonCorrCoef
 import glob
 import os
 import pickle
+import h5py
 
 arg_parser = argparse.ArgumentParser(
     description="""
@@ -61,6 +62,7 @@ if a.k == 0:
         print(f"Testing {model_file}...")
         k_th = model_file.split("/")[-1].split("_")[0]
         scalers = pickle.load(open(f"{folder}/{k_th}_fold_scalers.pkl", "rb"))
+        esm_hf = h5py.File("../data/esm_embeddings.hdf5", "r") 
 
         # run inference on test:
         test_ds = KmClass(
@@ -70,6 +72,8 @@ if a.k == 0:
             descriptor_scaler_minmax=scalers["descriptor_scaler_minmax"],
             km_scaler=scalers["km_scaler"], 
             with_seqid=scalers["a"].with_seqid,
+            with_esm=scalers["a"].with_esm,
+            esm_hf=esm_hf,
             test_mode=True
         )
 

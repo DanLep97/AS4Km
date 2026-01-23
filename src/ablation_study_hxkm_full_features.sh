@@ -15,6 +15,7 @@ BS_FREE_DB=../data/csv/train_dataset_hxkm_complex_bs_free.csv
 AA_ID_FREE_DB=../data/csv/train_dataset_hxkm_complex_aa_id_free.csv
 PROTEIN_FREE_DB=../data/csv/train_dataset_hxkm_complex_protein_free.csv
 MOLECULE_FREE_DB=../data/csv/train_dataset_hxkm_complex_molecule_free.csv
+ESM_DB=../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv
 
 # Test databases:
 CONDITIONED_BS_TEST_DB=../data/csv/HXKm_dataset_final_new_conditioned_bs.csv
@@ -25,6 +26,7 @@ BS_FREE_TEST_DB=../data/csv/HXKm_dataset_final_new_bs_free.csv
 AA_ID_FREE_TEST_DB=../data/csv/HXKm_dataset_final_new_aa_id_free.csv
 PROTEIN_FREE_TEST_DB=../data/csv/HXKm_dataset_final_new_protein_free.csv
 MOLECULE_FREE_TEST_DB=../data/csv/HXKm_dataset_final_new_molecule_free.csv
+ESM_TEST_DB=../data/csv/HXKm_dataset_final_new_conditioned_bs.csv
 
 INFERENCES_CSV=../data/csv/inferences_full_features.csv
 INFERENCES_CONDITIONED_CSV=../data/csv/inferences_conditioned_bs_full_features.csv
@@ -40,6 +42,7 @@ rm -r ../data/models/bs_free_full_features
 rm -r ../data/models/aa_id_free_full_features
 rm -r ../data/models/protein_free_full_features
 rm -r ../data/models/molecule_free_full_features
+rm -r ../data/models/esm_full_features
 rm ../data/logs/*
 
 # Train models:
@@ -113,6 +116,7 @@ python trainer.py\
     --with-seqid\
     > ../data/logs/protein_free_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 
+
 python trainer.py\
     --name molecule_free_full_features\
     --folds $FOLDS\
@@ -122,6 +126,17 @@ python trainer.py\
     --gated\
     --with-seqid\
     > ../data/logs/molecule_free_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+
+python trainer.py\
+    --name esm_full_features\
+    --folds $FOLDS\
+    --runs $RUNS\
+    --epochs $EPOCHS\
+    --db $ESM_DB\
+    --gated\
+    --with-seqid\
+    --with-esm\
+    > ../data/logs/esm_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 
 echo "waiting for training to be done"
 wait
@@ -219,7 +234,7 @@ python tester.py\
     --name protein_free_test
 
 python tester.py\
-    --db $MOLECULE_FREE_TEST_DB\
-    --model conditioned_bs_full_features\
+    --db $ESM_TEST_DB\
+    --model esm_full_features\
     --csv-output $INFERENCES_CONDITIONED_CSV\
-    --name molecule_free_test
+    --name esm_test

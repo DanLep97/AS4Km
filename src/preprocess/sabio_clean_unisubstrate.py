@@ -22,12 +22,18 @@ db[["Value", "Unit"]] = db.apply(
 )
 
 # keep only wildtypes and valid values:
-print(db.shape)
+db = db.loc[
+    (db.Unit == "mM") & # only with mM unit
+    (db.Type == "Km") & # only Km parameters (sanity check)
+    (~db.Value.isna()) # keep out empty Km measurements
+]
+print("SABIO-RK with WT+mutants and with available KM measurements:", db.shape)
 db = db.loc[
     (db.EnzymeType == "wildtype") & # only wildtypes
     (db.Unit == "mM") & # only with mM unit
     (db.Type == "Km") & # only Km parameters (sanity check)
     (~db.Value.isna()) # keep out empty Km measurements
 ]
+print("SABIO-RK with WT only:", db.shape)
 db.to_csv("../../data/sabio.csv", index=False)
 print(f"Saved sabio.csv with {db.shape[0]} entries.")

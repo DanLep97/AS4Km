@@ -42,11 +42,32 @@ echo "RUNNING TANKBIND"
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate tankbind # use your conda env for tankbind here
 
-# # tankbind on train data
+# tankbind on train data
 python build_conditioned_bs.py 
-# # tankbind on test data
+# tankbind on test data
 python build_conditioned_bs.py \
     --csv-input ../../data/csv/HXKm_dataset_final_new.csv
+
+# build esm-embeddings:
+python sequence_to_embed.py
+
+# cluster enzymes:
+python sequence_to_fasta.py
+
+# Create separate databases for train and test
+mmseqs createdb ../../data/train_fastas.fasta trainDB
+mmseqs createdb ../../data/test_fastas.fasta testDB
+
+# Search test sequences against train sequences
+mmseqs search testDB trainDB test_vs_trainDB ../../data/tmp_folder
+
+# Convert alignment results to tabular format
+mmseqs convertalis testDB trainDB test_vs_trainDB ../../data/enzyme_test_vs_train.tsv \
+  --format-output "query,target,pident,evalue,qstart,qend,qlen,tstart,tend,tlen"
+
+rm test_vs_train*
+rm testDB*
+rm trainDB*
 
 # build ablation datasets:
 conda activate tankbind_py38

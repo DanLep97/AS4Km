@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from hyperparameters import hyperparameters
 import pickle
 from copy import deepcopy
+import h5py
 
 RANDOM_SEED=123
 torch.manual_seed(RANDOM_SEED)
@@ -63,6 +64,12 @@ arg_parser.add_argument(
     default=False,
     action="store_true"
 )
+arg_parser.add_argument(
+    "--with-esm",
+    help="Train using ESM features.",
+    default=False,
+    action="store_true"
+)
 
 a = arg_parser.parse_args()
 
@@ -90,6 +97,8 @@ if a.folds > 0:
     for k, (train_indices, validation_indices) in enumerate(folds):
         if k >= a.runs:
             break
+        if a.with_esm:
+            esm_hf = h5py.File("../data/esm_embeddings.hdf5", "r")
         print(f"Starting training fold {k}")
         train_df = df.iloc[train_indices]
         train_df.reset_index(inplace=True, drop=True) # reset the index and drop the column of the old index
@@ -97,7 +106,7 @@ if a.folds > 0:
         validation_df = df.iloc[validation_indices]
         validation_df.reset_index(inplace=True, drop=True) # reset the index and drop the column of the old index
 
-        train_data = KmClass(train_df, with_seqid=a.with_seqid)
+        train_data = KmClass(train_df, with_seqid=a.with_seqid, with_esm=a.with_esm, esm_hf=esm_hf)
         scalers = {
             "amino_scaler": train_data.amino_scaler,
             "descriptor_scaler_robust": train_data.descriptor_scaler_robust,
@@ -113,7 +122,9 @@ if a.folds > 0:
             descriptor_scaler_robust=scalers["descriptor_scaler_robust"],
             descriptor_scaler_minmax=scalers["descriptor_scaler_minmax"],
             km_scaler=scalers["km_scaler"], 
-            with_seqid=a.with_seqid
+            with_seqid=a.with_seqid,
+            with_esm=a.with_esm,
+            esm_hf=esm_hf
         )
         net = Network(
             hidden_dim1=hyperparameters["hidden_dim1"], 

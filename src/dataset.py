@@ -3,6 +3,7 @@ import torch
 from sklearn.preprocessing import RobustScaler, MinMaxScaler, PowerTransformer
 import numpy as np
 import pandas as pd
+import numpy
 
 class KmClass(Dataset):
     def __init__(
@@ -14,6 +15,8 @@ class KmClass(Dataset):
             km_scaler=None,
             with_seqid=True,
             test_mode=False,
+            with_esm = False,
+            esm_hf = None
         ):
         self.dataframe = pd.DataFrame(df)
         self.test_mod = test_mode
@@ -86,6 +89,16 @@ class KmClass(Dataset):
             #km_values_capped = np.where(self.valid_data['km_value'] > 100, 100, np.where(self.valid_data['km_value'] < 0.0001, 0.0001, self.valid_data['km_value']))
             #self.km_log_capped = np.log10(km_values_capped).reshape(-1, 1)
             self.km_scaler.fit(self.km_log_capped)
+        
+        self.with_esm = with_esm
+        if with_esm:
+            # self.seq_esm = pickle.load(open("../data/esm_embeddings.pkl", "rb"))
+            self.esm_hf = esm_hf
+            esm_sequences = list(self.esm_hf.keys())
+            print("Before filtering out sequences without esm:", self.dataframe.shape[0])
+            self.dataframe = self.dataframe.loc[self.dataframe.sequence.isin(esm_sequences)]
+            print("After filtering out sequences without esm:", self.dataframe.shape[0])
+            self.tot_feats = 4804
 
     def __len__(self):
         return len(self.dataframe)
@@ -137,6 +150,47 @@ class KmClass(Dataset):
         
         return combined
     
+    def esm_substrate_input(self, idx):
+        row = self.dataframe.iloc[idx]
+
+        # Extract the data
+        protein_id = row['uniprot_key']
+        sequence = row['sequence']
+        esm_embeddings = torch.tensor(numpy.array(self.esm_hf[sequence])[0])
+        sequence = pd.Series(list(sequence))
+        km_value = row['km_value']
+
+        # Ensure km_value is not NaN
+        if pd.isna(km_value):
+            print(f"Skipping {protein_id}: km_value is NaN")
+            return None 
+        
+        # fetch and build pocket info:
+        pocket_values = self.__get_pocket_values__(row)
+        active_site_indices = torch.tensor(pocket_values).nonzero().flatten()
+
+        # build active site esm-representation:
+        active_site_esm = esm_embeddings[active_site_indices+1].mean(dim=0) # sequence tokens starts at position 1
+
+        # fetch sequence esm embedding:
+        sequence_esm = esm_embeddings.mean(dim=0)
+        
+        # concatenate sequence + active site embeddings:
+        enzyme_features = torch.cat([sequence_esm, active_site_esm]).tolist()
+
+        # Apply both scalers to the descriptors
+        descriptors = row.iloc[4:-2049].values.reshape(1, -1)
+        descriptors_scaled_robust = self.descriptor_scaler_robust.transform(descriptors)
+        descriptors_scaled = self.descriptor_scaler_minmax.transform(descriptors_scaled_robust).flatten().tolist()
+        
+        # Add fingerprint information
+        fingerprints = row.iloc[-2049:-1].values.tolist()
+
+        input_features = [*enzyme_features, *descriptors_scaled, *fingerprints] # n_features: 4,804
+        
+        return input_features
+
+    
     def __getitem__(self, idx):
         row = self.dataframe.iloc[idx]
 
@@ -163,7 +217,10 @@ class KmClass(Dataset):
             if x != 1: pocket_values[i] = 0
             # pocket_values[i] = 0
 
-        combined_data = self.__structure_data__(sequence, pocket_values, row)
+        if self.with_esm:
+            combined_data = self.esm_substrate_input(idx)
+        else:
+            combined_data = self.__structure_data__(sequence, pocket_values, row)
         
         x = torch.tensor(combined_data, dtype=torch.float32)
         y = torch.tensor([km_value], dtype=torch.float32).log10()
@@ -178,6 +235,7 @@ class KmClass(Dataset):
 
 if __name__ == "__main__":
     import argparse
+    import h5py
 
     arg_parser = argparse.ArgumentParser(
         description="Contains the class to load the Km dataset."
@@ -185,28 +243,30 @@ if __name__ == "__main__":
     arg_parser.add_argument(
         "--csv",
         help="Path to the pre-processed BRENDA and Sabio csv containing features.",
-        default="../data/csv/train_dataset_hxkm_complex_protein_free.csv"
+        default="../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv"
     )
     a = arg_parser.parse_args()
 
     df = pd.read_csv(a.csv)
-    ds = KmClass(df, with_seqid=True)
+    esm_hf = h5py.File("../data/esm_embeddings.hdf5", "r")
+    ds = KmClass(df, with_esm=True, esm_hf=esm_hf)
     x,y = ds[0]
-    sequence = ds.dataframe.iloc[0].sequence
-    seq_len = len(sequence)
-    print("total n features:", ds.tot_feats)
-    print("y:", y)
-    print("x shape:", x.shape)
-    print("fingerprint:", x[-2049:])
-    print("fingerprint unique values:", x[-2049:].unique())
-    print("bs:", x[1:seq_len*ds.n_res_feats:ds.n_res_feats])
-    print("bs unique values:", x[1:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
-    print("descriptors:", x[ds.n_prot_feats:ds.n_prot_feats+196])
-    print("descriptors unique values:", x[ds.n_prot_feats:ds.n_prot_feats+196].unique())
-    print("aa id:", x[0:seq_len*ds.n_res_feats:ds.n_res_feats])
-    print("aa id unique values:", x[0:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
-    if ds.with_seqid:
-        print("aa position:", x[2:seq_len*ds.n_res_feats:ds.n_res_feats])
-        print("aa position unique values:", x[2:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
-    print("len sequence:", seq_len)
-    print("sequence:", sequence)
+    print("input shape:", x.shape)
+    # sequence = ds.dataframe.iloc[0].sequence
+    # seq_len = len(sequence)
+    # print("total n features:", ds.tot_feats)
+    # print("y:", y)
+    # print("x shape:", x.shape)
+    # print("fingerprint:", x[-2049:])
+    # print("fingerprint unique values:", x[-2049:].unique())
+    # print("bs:", x[1:seq_len*ds.n_res_feats:ds.n_res_feats])
+    # print("bs unique values:", x[1:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
+    # print("descriptors:", x[ds.n_prot_feats:ds.n_prot_feats+196])
+    # print("descriptors unique values:", x[ds.n_prot_feats:ds.n_prot_feats+196].unique())
+    # print("aa id:", x[0:seq_len*ds.n_res_feats:ds.n_res_feats])
+    # print("aa id unique values:", x[0:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
+    # if ds.with_seqid:
+    #     print("aa position:", x[2:seq_len*ds.n_res_feats:ds.n_res_feats])
+    #     print("aa position unique values:", x[2:seq_len*ds.n_res_feats:ds.n_res_feats].unique())
+    # print("len sequence:", seq_len)
+    # print("sequence:", sequence)

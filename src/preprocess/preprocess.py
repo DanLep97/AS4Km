@@ -8,8 +8,6 @@ from rdkit.Chem import PandasTools, rdMolDescriptors, Descriptors
 import argparse
 from info import descriptors_to_keep
 from rdkit import RDLogger
-import pubchempy as pcp
-import time
 RDLogger.DisableLog("rdApp.*")
 import cirpy
 
@@ -82,7 +80,7 @@ def fetch_sequence(uniprot_id):
     if response.status_code == 200:
         # Extract sequence from FASTA format
         lines = response.text.splitlines()
-        sequence = ''.join(lines[1:].replace("\n", ""))  # Skip the first line which is the header
+        sequence = ''.join(lines[1:]).replace("\n", "")  # Skip the first line which is the header
         with open(saved, "a") as f:
             f.write(",".join([uniprot_id, sequence]) + "\n")
         return sequence
@@ -126,7 +124,8 @@ def fetch_smiles(name):
     return smiles if smiles != "None" else None
 
 # load data:
-df = pandas.read_csv("../../data/brenda_sabio.csv")
+# df = pandas.read_csv("../../data/brenda_sabio.csv")
+df = pandas.read_csv("../../data/brenda_sabio_without_mutants.csv")
 hxkm = pandas.read_csv(a.hxkm)
 hxkm.rename(columns={
     "Protein sequence": "sequence",
@@ -161,8 +160,10 @@ print("brenda_sabio before droping empty sequence:", df.shape[0])
 df.dropna(subset="sequence", inplace=True)
 print("brenda_sabio after droping empty sequence:", df.shape[0])
 df.to_csv("../../data/brenda_sabio.csv", index=False)
+above_threshold = df.loc[df.below_threshold == False]
 perc_above = (df.below_threshold == False).mean()*100
 print(f"brenda_sabio.csv: 70% of pLDDT scores above 70: {perc_above:.2f}")
+print(f"brenda_sabio.csv entries above 70% pLDDT score: {above_threshold.shape[0]}")
 
 print("Fetching alphafold structures for hxkm..")
 for key in tqdm.tqdm(hxkm.uniprot_key.unique()):
@@ -183,9 +184,10 @@ for substrate in tqdm.tqdm(df.substrate.unique()):
         continue
     smiles = fetch_smiles(substrate)
     df.loc[df.substrate==substrate, ["smiles"]] = smiles
+df.dropna(subset="smiles", inplace=True)
+print("brenda_sabio.csv after droping empty smiles:", df.shape[0])
 df.to_csv("../../data/brenda_sabio.csv", index=False)
-perc_smiles = (~df.smiles.isna()).mean()*100
-print(f"brends_sabio.csv: {perc_smiles:.2f} have a smiles.")
+df.to_csv("../../data/brenda_sabio_after_smiles_and_enzyme_processing.csv", index=False)
 
 # filter brenda_sabio from entries that are found in hxkm.
 # As described in 10.1186/s12859-024-05746-1 on `Independant Dataset Collection`,
@@ -226,5 +228,6 @@ hxkm = hxkm.loc[:, column_order + hxkm_columns]
 df.to_csv("../../data/csv/train_dataset_hxkm_complex.csv", index=False)
 hxkm.to_csv("../../data/csv/HXKm_dataset_final_new.csv", index=False)
 print("Finished gathering molecule and protein information.")
+print("Final size:", df.shape[0])
 
 
