@@ -43,6 +43,8 @@ rm -r ../data/models/aa_id_free_full_features
 rm -r ../data/models/protein_free_full_features
 rm -r ../data/models/molecule_free_full_features
 rm -r ../data/models/esm_full_features
+rm -r ../data/models/esm_as_full_features
+rm -r ../data/models/esm_enz_full_features
 rm ../data/logs/*
 
 # Train models:
@@ -137,6 +139,30 @@ python trainer.py\
     --with-seqid\
     --with-esm\
     > ../data/logs/esm_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+
+python trainer.py\
+    --name esm_as_full_features\
+    --folds $FOLDS\
+    --runs $RUNS\
+    --epochs $EPOCHS\
+    --db $ESM_DB\
+    --gated\
+    --with-seqid\
+    --with-esm\
+    --only-as-esm\
+    > ../data/logs/esm_as_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+
+python trainer.py\
+    --name esm_enz_full_features\
+    --folds $FOLDS\
+    --runs $RUNS\
+    --epochs $EPOCHS\
+    --db $ESM_DB\
+    --gated\
+    --with-seqid\
+    --with-esm\
+    --only-enz-esm\
+    > ../data/logs/esm_enz_full_features_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 
 echo "waiting for training to be done"
 wait
@@ -238,3 +264,14 @@ python tester.py\
     --model esm_full_features\
     --csv-output $INFERENCES_CONDITIONED_CSV\
     --name esm_test
+
+python tester.py\
+    --db $ESM_TEST_DB\
+    --model esm_as_full_features\
+    --csv-output $INFERENCES_CONDITIONED_CSV\
+    --name esm_as_test
+python tester.py\
+    --db $ESM_TEST_DB\
+    --model esm_enz_full_features\
+    --csv-output $INFERENCES_CONDITIONED_CSV\
+    --name esm_enz_test

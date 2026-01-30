@@ -20,12 +20,12 @@ import numpy
 import numpy as np
 from scipy import stats
 
-def plot_prot_lig_clustered():
+def plot_prot_lig_clustered(test_name):
     pcc = PearsonCorrCoef()
     hxkm = pandas.read_csv("../data/hxkm.csv")
     df_train = pandas.read_csv("../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv")
     train_db = KmClass(df_train).dataframe
-    df_test = pandas.read_csv("../data/csv/HXKm_dataset_final_new_unconditioned_bs.csv")
+    df_test = pandas.read_csv(f"../data/csv/HXKm_dataset_final_new_{test_name}.csv")
     # df_test = pandas.read_csv("../data/csv/HXKm_dataset_final_new_bs_free.csv")
     test_db = KmClass(df_test).dataframe
     clusters = pandas.read_csv("../data/enzyme_test_vs_train.tsv", sep="\t")
@@ -57,7 +57,7 @@ def plot_prot_lig_clustered():
         for test_fp in test_fingerprints
     ]) # each row are similarities to one given test entry
 
-    output_files = glob.glob(f"../data/models/conditioned_bs_full_features/*_unconditioned_bs_test_outputs.pkl")
+    output_files = glob.glob(f"../data/models/conditioned_bs_full_features/*_{test_name}_test_outputs.pkl")
 
     # threshold data:
     enz_clusters = {
@@ -124,7 +124,9 @@ def plot_prot_lig_clustered():
                 if all((pidents < threshold).tolist())
             ])
             # compute scores and save them:
-            threshold_output_idx = uniprot_keys[uniprot_keys.isin(threshold_queries)].index.tolist()
+            threshold_output_idx = uniprot_keys[
+                uniprot_keys.isin(threshold_queries)
+            ].index.tolist()
             threshold_preds = preds[threshold_output_idx]
             threshold_y = y[threshold_output_idx]
             r2 = r2_score(threshold_preds, threshold_y).item()
@@ -223,8 +225,8 @@ def plot_prot_lig_clustered():
 
     # Adjust layout
     plt.tight_layout()
-    plt.savefig("../figures/scores_on_clustered.jpg", dpi=600, bbox_inches='tight')
-    plt.savefig("../figures/scores_on_clustered.tiff", dpi=600, bbox_inches='tight')
+    plt.savefig(f"../figures/scores_on_clustered_{test_name}.jpg", dpi=600, bbox_inches='tight')
+    plt.savefig(f"../figures/scores_on_clustered_{test_name}.tiff", dpi=600, bbox_inches='tight')
     plt.show()
 
 def plot_gating_weights():
@@ -508,15 +510,34 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
         mse_mean=pd.NamedAgg(column="mse", aggfunc="mean"), 
         mse_std=pd.NamedAgg(column="mse", aggfunc="std")
     )
-    
+
     # Get the count for each model
     model_counts = test_metrics.groupby("name").size()
     grouped['count'] = grouped['name'].map(model_counts)
-    
-    plot_order = [grouped[grouped.name == "conditioned_bs_test"].index[0]] + [grouped[grouped.name == n].index[0] for n in ranked_r2.keys()]
-    grouped = grouped.reindex(plot_order)
-    grouped.reset_index(inplace=True, drop=True)
-    
+
+    # Define ESM models and regular models
+    esm_models = ["esm_test", "esm_as_test", "esm_enz_test", "conditioned_bs_test"]
+    regular_models = [
+        n for n in ranked_r2.keys()
+        if n not in esm_models
+    ]
+
+    # Create two separate groups
+    regular_grouped = grouped[grouped['name'].isin(regular_models + ["conditioned_bs_test"])].copy()
+    esm_grouped = grouped[grouped['name'].isin(esm_models)].copy()
+
+    # Order regular models
+    regular_plot_order = [regular_grouped[regular_grouped.name == "conditioned_bs_test"].index[0]] + \
+                        [regular_grouped[regular_grouped.name == n].index[0] for n in regular_models if n != "conditioned_bs_test" and n in regular_grouped['name'].values]
+    regular_grouped = regular_grouped.reindex(regular_plot_order)
+    regular_grouped.reset_index(inplace=True, drop=True)
+
+    # Order ESM models with Conditioned AS first
+    esm_plot_order = [esm_grouped[esm_grouped.name == "conditioned_bs_test"].index[0]] + \
+                    [esm_grouped[esm_grouped.name == n].index[0] for n in esm_models if n != "conditioned_bs_test" and n in esm_grouped['name'].values]
+    esm_grouped = esm_grouped.reindex(esm_plot_order)
+    esm_grouped.reset_index(inplace=True, drop=True)
+
     labels = {
         "conditioned_bs_test": "Conditioned AS",
         "unconditioned_bs_test": "Unconditioned AS\n(AS4Km)",
@@ -526,70 +547,91 @@ def plot_ablation(inferences_file, fig_title, file_name, with_table=False, with_
         "descriptor_free_test": "Descriptor free",
         "fingerprint_free_test": "Fingerprint free",
         "molecule_free_test": "Substrate free",
-        "esm_test": "ESM embeddings"
+        "esm_test": "ESM (enzyme + AS)",
+        "esm_as_test": "AS ESM",
+        "esm_enz_test": "Enzyme ESM"
     }
-    
-    # Create the plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    x = np.arange(len(grouped))
-    width = 0.40
-    
-    # Get x labels with aliases
-    x_labels = [labels.get(name, name) for name in grouped['name'].values]
-    
-    # Plot R2 bars with error bars
-    r2_bars = ax.bar(x - width/2, grouped.r2_mean.values, width, 
-                     yerr=grouped.r2_std.values, 
-                     capsize=5, error_kw={'elinewidth': 2, 'ecolor': 'red'},
-                     label='R$^2$', color='orange', edgecolor='black', linewidth=1)
-    
-    # Plot Pearson bars with error bars
-    p_bars = ax.bar(x + width/2, grouped.p_mean.values, width, 
-                    yerr=grouped.p_std.values,
-                    capsize=5, error_kw={'elinewidth': 2, 'ecolor': 'red'},
-                    label='Pearson', color='purple', edgecolor='black', linewidth=1)
-    
-    # Add significance annotations
-    for model, significance in significances.items():
-        if model in grouped['name'].values:
-            idx = grouped[grouped['name'] == model].index[0]
-            ax.text(idx, 0.65, significance, ha='center', va='bottom', 
-                    fontsize=16, fontweight='bold', color='red')
-    
-    # Add value labels on bars
-    def add_value_labels(bars, ax, values, color, decimals=3,):
-        for bar, value in zip(bars, values):
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height/3,
-                    f'{value:.{decimals}f}', ha='center', va='center', 
-                    fontsize=11, fontweight='bold', color=color)
-    
-    add_value_labels(r2_bars, ax, grouped.r2_mean.values, "black")
-    add_value_labels(p_bars, ax, grouped.p_mean.values, "white")
-    
-    # Customize the plot
-    ax.set_ylabel('Score', fontsize=16)
-    if with_title:
-        ax.set_title(fig_title, fontsize=16, pad=15)
-    
-    ax.set_xticks(x)
-    ax.set_xticklabels(x_labels, fontsize=18, rotation=45, ha='right')
-    ax.tick_params(axis='y', labelsize=16)
-    
-    ax.legend(fontsize=14, loc='lower left')
-    ax.grid(True, alpha=0.25, axis='y')
-    
-    # Adjust y-axis to ensure all bars and labels are visible
-    y_max = max(grouped.r2_mean.max(), grouped.p_mean.max())
-    ax.set_ylim([-.3, 0.73])  # Ensure room for significance markers
-    
-    plt.tight_layout()
-    
-    # Save the figure
-    plt.savefig(file_name, dpi=600, bbox_inches='tight')
-    plt.savefig(file_name.replace(".jpg", ".tiff"), dpi=600, bbox_inches='tight')
+
+    # Function to create a bar plot
+    def create_bar_plot(fig_size, grouped_data, show_legend=False, letter="A"):
+        fig, ax = plt.subplots(figsize=fig_size)
+        
+        x = np.arange(len(grouped_data))
+        width = 0.40
+        
+        # Get x labels with aliases
+        x_labels = [labels.get(name, name) for name in grouped_data['name'].values]
+        
+        # Plot R2 bars with error bars
+        r2_bars = ax.bar(x - width/2, grouped_data.r2_mean.values, width, 
+                        yerr=grouped_data.r2_std.values, 
+                        capsize=5, error_kw={'elinewidth': 2, 'ecolor': 'red'},
+                        label='R$^2$', color='orange', edgecolor='black', linewidth=1)
+        
+        # Plot Pearson bars with error bars
+        p_bars = ax.bar(x + width/2, grouped_data.p_mean.values, width, 
+                        yerr=grouped_data.p_std.values,
+                        capsize=5, error_kw={'elinewidth': 2, 'ecolor': 'red'},
+                        label='Pearson', color='purple', edgecolor='black', linewidth=1)
+        
+        # Add significance annotations (only for models being compared to Conditioned AS)
+        for model, significance in significances.items():
+            if model in grouped_data['name'].values and model != "conditioned_bs_test":
+                idx = grouped_data[grouped_data['name'] == model].index[0]
+                ax.text(idx, 0.61, significance, ha='center', va='bottom', 
+                        fontsize=16, fontweight='bold', color='red')
+        
+        # Add value labels on bars
+        def add_value_labels(bars, ax, values, color, decimals=3):
+            for bar, value in zip(bars, values):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height/3,
+                        f'{value:.{decimals}f}', ha='center', va='center', 
+                        fontsize=11, fontweight='bold', color=color)
+        
+        add_value_labels(r2_bars, ax, grouped_data.r2_mean.values, "black")
+        add_value_labels(p_bars, ax, grouped_data.p_mean.values, "white")
+        
+        # Customize the plot
+        ax.set_ylabel('Score', fontsize=16)
+        if with_title:
+            ax.set_title(fig_title, fontsize=16, pad=15)
+        
+        ax.set_xticks(x)
+        ax.set_xticklabels(x_labels, fontsize=14, rotation=20, ha='right')
+        ax.tick_params(axis='y', labelsize=16)
+        
+        if show_legend:
+            ax.legend(fontsize=14, loc='lower left')
+        
+        ax.grid(True, alpha=0.25, axis='y')
+        
+        # Adjust y-axis
+        y_max = max(grouped_data.r2_mean.max(), grouped_data.p_mean.max())
+        if show_legend:
+            ax.set_ylim([-.3, 0.7])
+        else:
+            ax.set_ylim([0, 0.73])
+        ax.text(-.07, 0.95, letter, fontsize=24, fontweight='bold', transform=ax.transAxes)
+        
+        plt.tight_layout()
+        return fig
+
+    # Create first figure (regular models)
+    fig1 = create_bar_plot((11, 5), regular_grouped, show_legend=True, letter="A")
+    file_name1 = file_name.replace('.jpg', '_regular.jpg').replace('.tiff', '_regular.tiff')
+    fig1.savefig(file_name1, dpi=600, bbox_inches='tight')
+    fig1.savefig(file_name1.replace(".jpg", ".tiff"), dpi=600, bbox_inches='tight')
     plt.show()
+    plt.close(fig1)
+
+    # Create second figure (ESM models)
+    fig2 = create_bar_plot((8, 4), esm_grouped, show_legend=False, letter="B")
+    file_name2 = file_name.replace('.jpg', '_esm.jpg').replace('.tiff', '_esm.tiff')
+    fig2.savefig(file_name2, dpi=600, bbox_inches='tight')
+    fig2.savefig(file_name2.replace(".jpg", ".tiff"), dpi=600, bbox_inches='tight')
+    plt.show()
+    plt.close(fig2)
     
     # Print table if requested
     cols_str = ""
@@ -651,17 +693,13 @@ def learning_curves(
     y_axes = [y for f_data in figure_data for y in f_data["titles"]["y_axis"]] 
     figures = [f for f_data in figure_data for f in f_data["figs"]] 
     # build final fig:
-    rows = 6
+    rows = 8
     cols = 3
     big_fig = make_subplots(
         rows=rows, cols=cols,
         vertical_spacing=0.02
-        # subplot_titles=[
-        #     "MSE over epochs",
-        #     "R2 over epochs",
-         #]
     )
-    for i in range(18):
+    for i in range(22):
         col = i % cols + 1
         row = i // cols + 1 
         for trace in figures[i]["data"]:

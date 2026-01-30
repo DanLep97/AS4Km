@@ -16,7 +16,10 @@ class KmClass(Dataset):
             with_seqid=True,
             test_mode=False,
             with_esm = False,
-            esm_hf = None
+            esm_hf = None,
+            only_as_esm = False,
+            only_enz_esm = False,
+            only_as = False
         ):
         self.dataframe = pd.DataFrame(df)
         self.test_mod = test_mode
@@ -94,11 +97,19 @@ class KmClass(Dataset):
         if with_esm:
             # self.seq_esm = pickle.load(open("../data/esm_embeddings.pkl", "rb"))
             self.esm_hf = esm_hf
+            self.only_as_esm = only_as_esm
+            self.only_ezm_esm = only_enz_esm
             esm_sequences = list(self.esm_hf.keys())
             print("Before filtering out sequences without esm:", self.dataframe.shape[0])
             self.dataframe = self.dataframe.loc[self.dataframe.sequence.isin(esm_sequences)]
             print("After filtering out sequences without esm:", self.dataframe.shape[0])
-            self.tot_feats = 4804
+            self.tot_feats = (4804, 3524)[only_as_esm or only_enz_esm]
+
+        self.only_as = only_as
+        if only_as:
+            self.n_res_feats = 2 # number of features per residue, depends on either with or without seqid feature
+            self.n_prot_feats = 1024*self.n_res_feats # number of protein features
+            self.tot_feats = self.n_prot_feats + 196 + 2048 # useful to provide as the input size for the model
 
     def __len__(self):
         return len(self.dataframe)
@@ -122,11 +133,13 @@ class KmClass(Dataset):
         amino_acid_values = [ord(aa) for aa in sequence]  # Convert amino acids to ASCII values
 
         # Scale the amino acid ASCII values
-        amino_acid_values_scaled = self.amino_scaler.transform(np.array(amino_acid_values).reshape(-1, 1)).flatten()
+        if not self.only_as:
+            amino_acid_values_scaled = self.amino_scaler.transform(np.array(amino_acid_values).reshape(-1, 1)).flatten()
 
         # Combine scaled amino acid values with pocket values
         for i, pocket in enumerate(pocket_values):
-            combined.append(amino_acid_values_scaled[i])  # Get the scaled value from the list
+            if not self.only_as:
+                combined.append(amino_acid_values_scaled[i])  # Get the scaled value from the list
             combined.append(pocket)
             if self.with_seqid:
                 combined.append(i/1024)
@@ -175,8 +188,13 @@ class KmClass(Dataset):
         # fetch sequence esm embedding:
         sequence_esm = esm_embeddings.mean(dim=0)
         
-        # concatenate sequence + active site embeddings:
-        enzyme_features = torch.cat([sequence_esm, active_site_esm]).tolist()
+        # concatenate sequence + active site embeddings, depending on which ESM to keep:
+        if self.only_as_esm:
+            enzyme_features = active_site_esm.tolist()
+        elif self.only_ezm_esm:
+            enzyme_features = sequence_esm.tolist()
+        else:
+            enzyme_features = torch.cat([sequence_esm, active_site_esm]).tolist()
 
         # Apply both scalers to the descriptors
         descriptors = row.iloc[4:-2049].values.reshape(1, -1)
@@ -249,7 +267,15 @@ if __name__ == "__main__":
 
     df = pd.read_csv(a.csv)
     esm_hf = h5py.File("../data/esm_embeddings.hdf5", "r")
-    ds = KmClass(df, with_esm=True, esm_hf=esm_hf)
+    ds = KmClass(
+        df, 
+        with_esm=False, 
+        esm_hf=esm_hf, 
+        only_as_esm=False, 
+        only_enz_esm=False,
+        only_as=True
+    )
+    print("number of features:", ds.tot_feats)
     x,y = ds[0]
     print("input shape:", x.shape)
     # sequence = ds.dataframe.iloc[0].sequence
