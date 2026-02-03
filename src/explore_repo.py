@@ -212,7 +212,7 @@ def plot_prot_lig_clustered(test_name):
     lig_r2_stds = [numpy.std(lig_clusters[t]['r2']) for t in thresholds]
 
     # Create subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3))
 
     # Bar width and x positions
     x = numpy.arange(len(thresholds))
@@ -242,7 +242,7 @@ def plot_prot_lig_clustered(test_name):
             height = bar.get_height()
             txt = enz_clusters[thresholds[i]]["n"][0]
             ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'n={txt}', ha='center', va='bottom', fontsize=9)
+                    f'n={txt}', ha='center', va='bottom', fontsize=12)
     # add significances:
     for i, bar in enumerate(bars1):
         height = bar.get_height() + 0.3
@@ -279,7 +279,7 @@ def plot_prot_lig_clustered(test_name):
             height = bar.get_height()
             txt = lig_clusters[thresholds[i]]["n"][0]
             ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'n={txt}', ha='center', va='bottom', fontsize=9)
+                    f'n={txt}', ha='center', va='bottom', fontsize=12)
 
     # add significances:
     for i, bar in enumerate(bars3):
