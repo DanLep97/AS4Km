@@ -184,10 +184,11 @@ def plot_prot_lig_clustered(test_name):
 
     ax1.set_xlabel('Clustering Threshold (%)', fontsize=12)
     ax1.set_ylabel('Score Value', fontsize=12)
-    ax1.set_title('Enzyme-Based Clustering Performance', fontsize=14, fontweight='bold')
     ax1.set_xticks(x)
     ax1.set_xticklabels([f'{t}%' for t in thresholds])
+    ax1.tick_params(axis="both", labelsize=12)
     ax1.grid(True, alpha=0.3, axis='y')
+    ax1.text(-.07, 0.95, "A", fontsize=20, fontweight='bold', transform=ax1.transAxes)
 
     # Add value labels on bars
     for bars in [bars1, bars2]:
@@ -208,12 +209,12 @@ def plot_prot_lig_clustered(test_name):
                     error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
 
     ax2.set_xlabel('Clustering Threshold (%)', fontsize=12)
-    ax2.set_ylabel('Score Value', fontsize=12)
-    ax2.set_title('Ligand-Based Clustering Performance', fontsize=14, fontweight='bold')
     ax2.set_xticks(x)
     ax2.set_xticklabels([f'{t}%' for t in thresholds])
-    ax2.legend(fontsize=11)
+    ax2.legend(fontsize=12)
     ax2.grid(True, alpha=0.3, axis='y')
+    ax2.text(-.15, 0.95, "B", fontsize=20, fontweight='bold', transform=ax2.transAxes)
+    ax2.tick_params(axis="both", labelsize=12)
 
     # Add value labels on bars
     for bars in [bars3, bars4]:
