@@ -59,49 +59,78 @@ def plot_prot_lig_clustered(test_name):
 
     output_files = glob.glob(f"../data/models/conditioned_bs_full_features/*_{test_name}_test_outputs.pkl")
 
+    def compute_significance(ref, test):
+        _, p_value = stats.ttest_rel(ref, test)
+        significance = ""
+        if p_value < 0.001:
+            significance = "***"
+        elif p_value < 0.01:
+           significance =  "**"
+        elif p_value < 0.05:
+           significance =  "*"
+        return significance
+
     # threshold data:
     enz_clusters = {
+        100: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
         99: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         80: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         60: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         40: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         }
     }
     lig_clusters = {
+        100: {
+            "pcc": [],
+            "r2": [],
+            "n": [],
+        },
         99: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         80: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         60: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         },
         40: {
             "pcc": [],
             "r2": [],
             "n": [],
+            "significance": None,
         }
     }
 
@@ -121,7 +150,7 @@ def plot_prot_lig_clustered(test_name):
             # get below threshold uniprot ids:
             threshold_queries = set([
                 q for q,pidents in query_pidents.items()
-                if all((pidents < threshold).tolist())
+                if all((pidents <= threshold).tolist())
             ])
             # compute scores and save them:
             threshold_output_idx = uniprot_keys[
@@ -134,6 +163,7 @@ def plot_prot_lig_clustered(test_name):
             enz_clusters[threshold]["r2"].append(r2)
             enz_clusters[threshold]["pcc"].append(pearson)
             enz_clusters[threshold]["n"].append(len(threshold_output_idx))
+        
 
         # scores based on substrate similarity:
         for threshold in lig_clusters:
@@ -150,6 +180,22 @@ def plot_prot_lig_clustered(test_name):
             lig_clusters[threshold]["r2"].append(r2)
             lig_clusters[threshold]["pcc"].append(pearson)
             lig_clusters[threshold]["n"].append(len(threshold_output_idx))
+    # add significance:
+    r2_ref = enz_clusters[100]["r2"]
+    for threshold in enz_clusters.keys():
+        if "significance" not in enz_clusters[threshold].keys(): # skip the ref
+            continue
+        r2 = enz_clusters[threshold]["r2"]
+        significance = compute_significance(r2_ref, r2)
+        enz_clusters[threshold]["significance"] = significance
+
+    r2_ref = lig_clusters[100]["r2"]
+    for threshold in lig_clusters.keys():
+        if "significance" not in lig_clusters[threshold].keys(): # skip the ref
+            continue
+        r2 = lig_clusters[threshold]["r2"]
+        significance = compute_significance(r2_ref, r2)
+        lig_clusters[threshold]["significance"] = significance
 
     # Assuming enz_clusters and lig_clusters are defined with your data
     # Calculate means for each threshold
@@ -188,7 +234,7 @@ def plot_prot_lig_clustered(test_name):
     ax1.set_xticklabels([f'{t}%' for t in thresholds])
     ax1.tick_params(axis="both", labelsize=12)
     ax1.grid(True, alpha=0.3, axis='y')
-    ax1.text(-.07, 0.95, "A", fontsize=20, fontweight='bold', transform=ax1.transAxes)
+    ax1.text(-.15, 0.95, "A", fontsize=20, fontweight='bold', transform=ax1.transAxes)
 
     # Add value labels on bars
     for bars in [bars1, bars2]:
@@ -197,6 +243,17 @@ def plot_prot_lig_clustered(test_name):
             txt = enz_clusters[thresholds[i]]["n"][0]
             ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                     f'n={txt}', ha='center', va='bottom', fontsize=9)
+    # add significances:
+    for i, bar in enumerate(bars1):
+        height = bar.get_height() + 0.3
+        if "significance" in enz_clusters[thresholds[i]].keys():
+            txt = enz_clusters[thresholds[i]]["significance"]
+        else:
+            txt = ""
+        ax1.text(
+            bar.get_x() + bar.get_width()/2., 
+            height, txt, ha='center', va='bottom', fontsize=13, color="red",
+        )
 
     # Plot 2: Ligand-based clustering  
     bars3 = ax2.bar(x - width/2, lig_r2_means, width,
@@ -211,7 +268,7 @@ def plot_prot_lig_clustered(test_name):
     ax2.set_xlabel('Clustering Threshold (%)', fontsize=12)
     ax2.set_xticks(x)
     ax2.set_xticklabels([f'{t}%' for t in thresholds])
-    ax2.legend(fontsize=12)
+    ax2.legend(fontsize=12, loc="lower right")
     ax2.grid(True, alpha=0.3, axis='y')
     ax2.text(-.15, 0.95, "B", fontsize=20, fontweight='bold', transform=ax2.transAxes)
     ax2.tick_params(axis="both", labelsize=12)
@@ -224,11 +281,24 @@ def plot_prot_lig_clustered(test_name):
             ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
                     f'n={txt}', ha='center', va='bottom', fontsize=9)
 
+    # add significances:
+    for i, bar in enumerate(bars3):
+        height = bar.get_height() + 0.3
+        if "significance" in lig_clusters[thresholds[i]].keys():
+            txt = lig_clusters[thresholds[i]]["significance"]
+        else:
+            txt = ""
+        ax2.text(
+            bar.get_x() + bar.get_width()/2., 
+            height, txt, ha='center', va='bottom', fontsize=13, color="red",
+        )
+
     # Adjust layout
     plt.tight_layout()
     plt.savefig(f"../figures/scores_on_clustered_{test_name}.jpg", dpi=600, bbox_inches='tight')
     plt.savefig(f"../figures/scores_on_clustered_{test_name}.tiff", dpi=600, bbox_inches='tight')
     plt.show()
+
 
 def plot_gating_weights():
     """Plot gating weight contributions from neural network"""
