@@ -59,7 +59,8 @@ mmseqs createdb ../../data/train_fastas.fasta trainDB
 mmseqs createdb ../../data/test_fastas.fasta testDB
 
 # Search test sequences against train sequences
-mmseqs search testDB trainDB test_vs_trainDB ../../data/tmp_folder
+mmseqs search testDB trainDB test_vs_trainDB ../../data/tmp_folder\
+    -e 100
 
 # Convert alignment results to tabular format
 mmseqs convertalis testDB trainDB test_vs_trainDB ../../data/enzyme_test_vs_train.tsv \

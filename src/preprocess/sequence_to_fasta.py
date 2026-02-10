@@ -6,14 +6,19 @@ hxkm_df = pandas.read_csv("../../data/hxkm.csv")
 train_fastas = ""
 test_fastas = ""
 
-for i in range(brenda_sabio_df.shape[0]):
-    case = brenda_sabio_df.iloc[i]
-    fasta_str = f">{case.uniprot_key}\n{case.sequence}\n"
-    train_fastas += fasta_str
-for i in range(hxkm_df.shape[0]):
-    case = hxkm_df.iloc[i]
-    fasta_str = f">{case.uniprot_key}\n{case.sequence}\n"
-    test_fastas += fasta_str
+brenda_sabio_enz_sequence = {
+    enz: brenda_sabio_df.loc[brenda_sabio_df.uniprot_key == enz].sequence.values[0]
+    for enz in brenda_sabio_df.uniprot_key.unique()
+}
+hxkm_enz_sequence = {
+    enz: hxkm_df.loc[hxkm_df.uniprot_key == enz].sequence.values[0]
+    for enz in hxkm_df.uniprot_key.unique()
+}
+for enz, seq in brenda_sabio_enz_sequence.items():
+    train_fastas += f">{enz}\n{seq}\n"
+
+for enz, seq in hxkm_enz_sequence.items():
+    test_fastas += f">{enz}\n{seq}\n"
 
 with open("../../data/train_fastas.fasta", "w") as train_f:
     train_f.write(train_fastas)
