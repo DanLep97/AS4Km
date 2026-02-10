@@ -32,8 +32,11 @@ class KmClass(Dataset):
 
         if "Ipc" in self.dataframe.columns:
             self.dataframe = self.dataframe.drop('Ipc', axis=1)
-        self.dataframe = self.dataframe[self.dataframe['below_threshold'] == False] # drop datapoints with low alphafold confidence score
         self.dataframe = self.dataframe.loc[self.dataframe.km_value > 0]
+        print("After KM filter:", self.dataframe.shape[0])
+        self.dataframe = self.dataframe.loc[self.dataframe.sequence.str.len() < 1024]
+        print("Entry count after sequence filter:", self.dataframe.shape[0])
+        self.dataframe = self.dataframe[self.dataframe['below_threshold'] == False] # drop datapoints with low alphafold confidence score
         # clip km values to biological range
         self.dataframe['km_value'] = self.dataframe['km_value'].clip(0.00001, 1000)
         self.dataframe.sequence = self.dataframe.sequence.str.replace("\n", "")
@@ -45,11 +48,9 @@ class KmClass(Dataset):
         self.dataframe.drop(self.dataframe[
             self.dataframe['conditioned_bs'].isna()
         ].index, inplace=True)
-        print("Before drop:", self.dataframe.shape[0])
         self.dataframe.drop(self.dataframe[
             self.dataframe["sequence"].str.len() != self.dataframe["conditioned_bs"].str.len()
         ].index, inplace=True)
-        print("After drop:", self.dataframe.shape[0])
 
         # Use pre-fitted scalers if provided
         self.amino_scaler = amino_scaler
@@ -273,7 +274,7 @@ if __name__ == "__main__":
         esm_hf=esm_hf, 
         only_as_esm=False, 
         only_enz_esm=False,
-        only_as=True
+        only_as=False
     )
     print("number of features:", ds.tot_feats)
     x,y = ds[0]
