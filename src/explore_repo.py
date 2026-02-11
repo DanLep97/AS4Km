@@ -20,18 +20,162 @@ import numpy
 import numpy as np
 from scipy import stats
 
-def plot_prot_lig_clustered(test_name):
+def plot_as_labeling(path):
+    df = pandas.read_csv(path)
+
+    # plot:
+    fig, ax = plt.subplots(figsize=(6,4))
+
+    x = np.arange(len(df))
+    width = 0.3
+
+    # Precision bars:
+    precision_bars = ax.bar(
+        x, df["Precision_mean"], width,
+        label="Precision", color="#A23B72"
+    )
+
+    # recall bars:
+    recall_bars = ax.bar(
+        x - width, df["Recall_mean"], width,
+        label="Recall", color="#CEC54A"
+    )
+
+    # f1 bars:
+    f1_bars = ax.bar(
+        x + width, df["F1_mean"], width,
+        label="F1", color="green"
+    )
+    # Add value labels on bars
+    all_bars = [precision_bars, recall_bars, f1_bars]
+    colors = ["black"]*3
+    for bars, color in zip(all_bars, colors):
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                    f'{height:.3f}', ha='center', va='bottom', 
+                    fontsize=12, color=color)
+    # Customize plot
+    ax.set_ylabel('Score', fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(df['Method'], fontsize=12)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3, axis='y')
+
+    # Adjust y-limits based on data
+    all_heights = list(df['Precision_mean']) + list(df['Recall_mean']) \
+        + list(df["F1_mean"])
+    max_height = max(all_heights)
+    min_height = min(all_heights)
+
+    # For negative values, adjust ylim accordingly
+    if min_height < 0:
+        ax.set_ylim(min_height * 1.1, max_height * 1.15)
+    else:
+        ax.set_ylim(0, max_height * 1.15)
+
+    plt.tight_layout()
+    plt.savefig("../figures/as_labeling.jpg", dpi=600, bbox_inches="tight")
+    plt.savefig("../figures/as_labeling.tiff", dpi=600, bbox_inches="tight")
+    plt.show()
+
+
+def plot_base_and_ext_methods(path):
+    df = pandas.read_csv(path)
+    labels = {
+        "AS4Km (unconditioned)": "AS4Km",
+        "baseline": "Baseline",
+        "graphkm": "GraphKM",
+        "mlago": "MLAGO",
+        "catpred": "CatPred"
+    }
+    df["Method"] = df["Method"].map(labels)    
+    desired_order = ['AS4Km', 'CatPred', 'GraphKM', 'Baseline', 'MLAGO']
+    df['Method'] = pd.Categorical(df['Method'], categories=desired_order, ordered=True)
+    df = df.sort_values('Method')
+
+    # make the plot:
+    fig, ax = plt.subplots(figsize=(8, 4))
+    x = np.arange(len(df))
+    width = 0.35
+    r2_bars = ax.bar(x - width/2, df['R2'], width, 
+                label='R²', color='orange', alpha=0.8)
+
+    # Pearson bars  
+    pearson_bars = ax.bar(x + width/2, df['Pearson'], width,
+                        label='Pearson', color='purple', alpha=0.8)
+
+    # Add error bars for AS4Km only (index 0 in sorted order)
+    as4km_idx = list(df['Method']).index('AS4Km') if 'AS4Km' in df['Method'].values else 0
+
+    # Add error bars for R2
+    if pd.notna(df.loc[as4km_idx, 'R2_std']):
+        ax.errorbar(x[as4km_idx] - width/2, df.loc[as4km_idx, 'R2'], 
+                yerr=df.loc[as4km_idx, 'R2_std'],
+                fmt='none', color='black', capsize=5, capthick=1.5, elinewidth=1.5)
+
+    # Add error bars for Pearson
+    if pd.notna(df.loc[as4km_idx, 'Pearson_std']):
+        ax.errorbar(x[as4km_idx] + width/2, df.loc[as4km_idx, 'Pearson'], 
+                yerr=df.loc[as4km_idx, 'Pearson_std'],
+                fmt='none', color='black', capsize=5, capthick=1.5, elinewidth=1.5)
+
+    # Customize plot
+    ax.set_ylabel('Score', fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(df['Method'], fontsize=12)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3, axis='y')
+
+    # Add value labels on bars
+    for bars, color in zip([r2_bars, pearson_bars], ["black", "black"]):
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                    f'{height:.3f}', ha='center', va='bottom', 
+                    fontsize=12, color=color)
+
+    # Adjust y-limits based on data
+    all_heights = list(df['R2']) + list(df['Pearson'])
+    max_height = max(all_heights)
+    min_height = min(all_heights)
+
+    # For negative values, adjust ylim accordingly
+    if min_height < 0:
+        ax.set_ylim(min_height * 1.1, max_height * 1.15)
+    else:
+        ax.set_ylim(0, max_height * 1.15)
+
+    plt.tight_layout()
+    plt.savefig("../figures/compare_methods.jpg", dpi=600, bbox_inches="tight")
+    plt.savefig("../figures/compare_methods.tiff", dpi=600, bbox_inches="tight")
+    plt.show()
+
+
+def plot_prot_lig_clustered(test_name, ylim1, ylim2):
+    # get only uniprot keys from conditioned and unconditioned:
+    bs_free_db = pandas.read_csv(f"../data/csv/HXKm_dataset_final_new_conditioned_bs.csv")
+    unconditioned_db = pandas.read_csv(f"../data/csv/HXKm_dataset_final_new_unconditioned_bs.csv")
+    common_keys = bs_free_db.loc[
+        bs_free_db.uniprot_key.isin(unconditioned_db.uniprot_key.tolist())
+    ].uniprot_key.unique().tolist()
+    print("Len common keys:", len(common_keys))
+
     pcc = PearsonCorrCoef()
     hxkm = pandas.read_csv("../data/hxkm.csv")
     df_train = pandas.read_csv("../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv")
     train_db = KmClass(df_train).dataframe
     df_test = pandas.read_csv(f"../data/csv/HXKm_dataset_final_new_{test_name}.csv")
-    # df_test = pandas.read_csv("../data/csv/HXKm_dataset_final_new_bs_free.csv")
+    df_test = df_test.loc[df_test.uniprot_key.isin(common_keys)]
     test_db = KmClass(df_test).dataframe
     clusters = pandas.read_csv("../data/enzyme_test_vs_train.tsv", sep="\t")
     columns = "query,target,pident,evalue,qstart,qend,qlen,tstart,tend,tlen".split(",")
     clusters.columns = columns 
     clusters.reset_index(drop=True, inplace=True)
+    clusters["query"] = clusters["query"].str.strip()
+    clusters["target"] = clusters["target"].str.strip()
 
     # enzyme thresholds per unique query:
     query_pidents = {
@@ -146,6 +290,7 @@ def plot_prot_lig_clustered(test_name):
             axis=1
         )
         uniprot_keys.reset_index(drop=True, inplace=True)
+        assert all(uniprot_keys.isin(query_pidents.keys())), "Not all uniprot keys are in queries"
         for threshold in enz_clusters.keys():
             # get below threshold uniprot ids:
             threshold_queries = set([
@@ -156,6 +301,7 @@ def plot_prot_lig_clustered(test_name):
             threshold_output_idx = uniprot_keys[
                 uniprot_keys.isin(threshold_queries)
             ].index.tolist()
+
             threshold_preds = preds[threshold_output_idx]
             threshold_y = y[threshold_output_idx]
             r2 = r2_score(threshold_preds, threshold_y).item()
@@ -212,13 +358,18 @@ def plot_prot_lig_clustered(test_name):
     lig_r2_stds = [numpy.std(lig_clusters[t]['r2']) for t in thresholds]
 
     # Create subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3))
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(8, 6),
+        gridspec_kw={"hspace": 0.2}
+    )
 
     # Bar width and x positions
     x = numpy.arange(len(thresholds))
     width = 0.35
 
     # Plot 1: Enzyme-based clustering
+    print("Enz r2:", enz_r2_means)
+    print("Enz Pearson:", enz_pcc_means)
     bars1 = ax1.bar(x - width/2, enz_r2_means, width, 
                     label='R²', color='orange', alpha=0.8,
                     yerr=enz_r2_stds, capsize=5,
@@ -228,13 +379,12 @@ def plot_prot_lig_clustered(test_name):
                     yerr=enz_pcc_stds, capsize=5,
                     error_kw={'elinewidth': 1.5, 'ecolor': 'black'})
 
-    ax1.set_xlabel('Clustering Threshold (%)', fontsize=12)
     ax1.set_ylabel('Score Value', fontsize=12)
     ax1.set_xticks(x)
     ax1.set_xticklabels([f'{t}%' for t in thresholds])
     ax1.tick_params(axis="both", labelsize=12)
     ax1.grid(True, alpha=0.3, axis='y')
-    ax1.text(-.15, 0.95, "A", fontsize=20, fontweight='bold', transform=ax1.transAxes)
+    ax1.text(-.1, 0.9, "A", fontsize=20, fontweight='bold', transform=ax1.transAxes)
 
     # Add value labels on bars
     for bars in [bars1, bars2]:
@@ -256,6 +406,8 @@ def plot_prot_lig_clustered(test_name):
         )
 
     # Plot 2: Ligand-based clustering  
+    print("Lig r2:", lig_r2_means)
+    print("Lig Pearson:", lig_pcc_means)
     bars3 = ax2.bar(x - width/2, lig_r2_means, width,
                     label='R²', color='orange', alpha=0.8,
                     yerr=lig_r2_stds, capsize=5,
@@ -267,10 +419,11 @@ def plot_prot_lig_clustered(test_name):
 
     ax2.set_xlabel('Clustering Threshold (%)', fontsize=12)
     ax2.set_xticks(x)
+    ax2.set_ylabel('Score Value', fontsize=12)
     ax2.set_xticklabels([f'{t}%' for t in thresholds])
     ax2.legend(fontsize=12, loc="lower right")
     ax2.grid(True, alpha=0.3, axis='y')
-    ax2.text(-.15, 0.95, "B", fontsize=20, fontweight='bold', transform=ax2.transAxes)
+    ax2.text(-.1, 0.95, "B", fontsize=20, fontweight='bold', transform=ax2.transAxes)
     ax2.tick_params(axis="both", labelsize=12)
 
     # Add value labels on bars
@@ -292,6 +445,8 @@ def plot_prot_lig_clustered(test_name):
             bar.get_x() + bar.get_width()/2., 
             height, txt, ha='center', va='bottom', fontsize=13, color="red",
         )
+    ax1.set_ylim(ylim1)
+    ax2.set_ylim(ylim2)
 
     # Adjust layout
     plt.tight_layout()
