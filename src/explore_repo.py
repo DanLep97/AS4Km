@@ -20,66 +20,84 @@ import numpy
 import numpy as np
 from scipy import stats
 
-def plot_as_labeling(path):
-    df = pandas.read_csv(path)
-
-    # plot:
-    fig, ax = plt.subplots(figsize=(6,4))
-
-    x = np.arange(len(df))
-    width = 0.3
-
-    # Precision bars:
-    precision_bars = ax.bar(
-        x, df["Precision_mean"], width,
-        label="Precision", color="#A23B72"
-    )
-
-    # recall bars:
-    recall_bars = ax.bar(
-        x - width, df["Recall_mean"], width,
-        label="Recall", color="#CEC54A"
-    )
-
-    # f1 bars:
-    f1_bars = ax.bar(
-        x + width, df["F1_mean"], width,
-        label="F1", color="green"
-    )
-    # Add value labels on bars
-    all_bars = [precision_bars, recall_bars, f1_bars]
-    colors = ["black"]*3
-    for bars, color in zip(all_bars, colors):
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{height:.3f}', ha='center', va='bottom', 
-                    fontsize=12, color=color)
-    # Customize plot
-    ax.set_ylabel('Score', fontsize=12)
+def plot_as_labeling(as_data):
+    """
+    Plot mean and std of precision, recall, and f1 scores for P2Rank and TankBind.
+    
+    Parameters:
+    as_data (dict): Dictionary with tool names as keys and file paths as values
+    """
+    
+    # Dictionary to store metrics for each tool
+    metrics = {
+        'P2Rank': {'precision': [], 'recall': [], 'f1': []},
+        'TankBind': {'precision': [], 'recall': [], 'f1': []}
+    }
+    
+    # Load data from CSV files
+    for tool_name, file_path in as_data.items():
+        df = pd.read_csv(file_path)
+        metrics[tool_name]['precision'] = df['precision'].values
+        metrics[tool_name]['recall'] = df['recall'].values
+        metrics[tool_name]['f1'] = df['f1'].values
+    
+    # Calculate means and standard deviations
+    tools = ['P2Rank', 'TankBind']
+    metric_names = ['precision', 'recall', 'f1']
+    
+    means = {tool: {metric: np.mean(metrics[tool][metric]) for metric in metric_names} 
+             for tool in tools}
+    stds = {tool: {metric: np.std(metrics[tool][metric]) for metric in metric_names} 
+            for tool in tools}
+    
+    # Set up the plot
+    fig, ax = plt.subplots(figsize=(6, 4))
+    
+    # Width of bars and positions
+    width = 0.25
+    x = np.arange(len(tools))
+    
+    # Colors for different metrics
+    colors = ["#7B0B97", "#9A9C26", "#204B10"]
+    
+    # Plot bars for each metric
+    for i, metric in enumerate(metric_names):
+        # Calculate positions for this metric's bars
+        positions = x + (i - 1) * width
+        
+        # Create bars with error bars
+        metric_means = [means[tool][metric] for tool in tools]
+        metric_stds = [stds[tool][metric] for tool in tools]
+        
+        bars = ax.bar(positions, metric_means, width, 
+                      label=metric.capitalize(),
+                      color=colors[i],
+                      yerr=metric_stds,
+                      capsize=5,
+                      error_kw={'elinewidth': 2, 'ecolor': 'black'})
+        
+        # Add text annotations for mean values
+        for j, (pos, mean_val) in enumerate(zip(positions, metric_means)):
+            ax.text(pos+0.1, mean_val + 0.01, 
+                   f'{mean_val:.3f}',
+                   ha='center', va='bottom',
+                   fontsize=12)
+    
+    # Customize the plot
     ax.set_xticks(x)
-    ax.set_xticklabels(df['Method'], fontsize=12)
-    ax.tick_params(axis="y", labelsize=12)
-    ax.legend(fontsize=11)
+    ax.set_xticklabels(tools)
+    ax.set_ylabel('Score', fontsize=12)
+    ax.legend(loc='upper right', ncols=3, fontsize=12)
+    ax.tick_params(axis="both", labelsize=12)
+    
+    # Add grid for better readability
     ax.grid(True, alpha=0.3, axis='y')
-
-    # Adjust y-limits based on data
-    all_heights = list(df['Precision_mean']) + list(df['Recall_mean']) \
-        + list(df["F1_mean"])
-    max_height = max(all_heights)
-    min_height = min(all_heights)
-
-    # For negative values, adjust ylim accordingly
-    if min_height < 0:
-        ax.set_ylim(min_height * 1.1, max_height * 1.15)
-    else:
-        ax.set_ylim(0, max_height * 1.15)
-
+    
+    # Adjust layout to prevent label cutoff
     plt.tight_layout()
+
     plt.savefig("../figures/as_labeling.jpg", dpi=600, bbox_inches="tight")
     plt.savefig("../figures/as_labeling.tiff", dpi=600, bbox_inches="tight")
-    plt.show()
-
 
 def plot_base_and_ext_methods(path):
     df = pandas.read_csv(path)
