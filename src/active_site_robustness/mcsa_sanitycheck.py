@@ -10,7 +10,7 @@ Example usage:
 python mcsa_sanitycheck.py \
   --dataset-path ../data/csv/train_dataset_hxkm_complex_unconditioned_bs.csv \
   --csa-path ../data/csa_subset.csv \
-  --out-path results/mcsa_sanitycheck_and_robustness.csv \
+  --out-path ../data/mcsa_sanitycheck_and_robustness.csv \
   --mask-col conditioned_bs \
   --n-trials 30 --drop-frac 0.1 --add-frac 0.1
 """
