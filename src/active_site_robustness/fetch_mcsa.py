@@ -10,8 +10,8 @@ The script:
 Example usage
 -------------
 python fetch_mcsa_subset.py \
-    --dataset-path data/csv/train_dataset_hxkm_complex_conditioned_bs.csv \
-    --out-path data/csv/csa_subset.csv \
+    --dataset-path ../data/csv/train_dataset_hxkm_complex_conditioned_bs.csv \
+    --out-path ../data/csv/csa_subset.csv \
     --n-target 100 \
     --sleep-seconds 0.25 \
     --seed 42
